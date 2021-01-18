@@ -1,5 +1,6 @@
 import fs = require("fs");
 import fetch from "node-fetch";
+import { GameId } from "./game_id";
 import {ProfileURL} from "./profile_url";
 
 const RG_GAMES_0 = "var rgGames = ";
@@ -31,7 +32,7 @@ export async function get_last_played(profile: ProfileURL) {
       return null;
    }
 
-   const out: {[appid: string]: Date | "never played"} = Object.create(null);
+   const out: {[game_id: number]: Date | null} = Object.create(null);
 
    for (const { appid, last_played } of all_games) {
       if (appid === 440) {
@@ -41,7 +42,7 @@ export async function get_last_played(profile: ProfileURL) {
       if (last_played) {
          out[appid] = new Date(last_played * SECONDS_TO_MS);
       } else {
-         out[appid] = "never played";
+         out[appid] = null;
       }
    }
 

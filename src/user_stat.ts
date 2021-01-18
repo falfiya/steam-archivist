@@ -1,11 +1,10 @@
 import { GameId } from "./game_id";
 import { GameLocalAchievementId } from "./game_local_achievement_id";
 
-export interface GameAchievement {
+export interface UserStat {
    game_id: GameId;
    id: GameLocalAchievementId;
 
-   display_name: string;
-   description: string | null;
-   precent_unlocked: number;
+   /** Sorry, only numbers */
+   value: number;
 }
