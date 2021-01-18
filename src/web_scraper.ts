@@ -10,7 +10,7 @@ export async function get_all_games(profile: ProfileURL) {
       // const html = await
       //    fetch(`${profile}/games/?tab=all`)
       //       .then(res => res.text());
-      const html      = fs.readFileSync("/cache/cached", "utf8");
+      const html      = fs.readFileSync(`${__dirname}/../cache/cached`, "utf8");
       const games_beg = html.indexOf(RG_GAMES_0) + RG_GAMES_0.length;
       const games_end = html.indexOf(RG_GAMES_1);
       const games_dat = html.slice(games_beg, games_end);

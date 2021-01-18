@@ -1,5 +1,5 @@
 import {make} from "./profile_url";
-import {get_last_played} from "./web_scraper";
+import {get_all_games, get_last_played} from "./web_scraper";
 
 const coalpha = make("https://steamcommunity.com/id/coalpha");
 if (coalpha == null) {
@@ -8,7 +8,7 @@ if (coalpha == null) {
 }
 
 void async function main() {
-   console.log(await get_last_played(coalpha));
+   console.log(await get_all_games(coalpha));
 }().catch(console.error.bind(console));
 // const SteamAPI = require("steamapi");
 // const secrets = JSON.parse(fs.readFileSync(__dirname + "/secrets.json"));
