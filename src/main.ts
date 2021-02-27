@@ -1,16 +1,10 @@
-import {make} from "./profile_url";
-import {get_all_games, get_last_played} from "./web_scraper";
+import { steam_session } from "ts-steam-webapi";
 
-const coalpha = make("https://steamcommunity.com/id/coalpha");
-if (coalpha == null) {
-   console.error("Something is very very wrong");
-   process.exit(1);
-}
+const {steam_api_key} = require("../secrets.json");
+
+const ss = new steam_session(steam_api_key);
 
 void async function main() {
-   console.log(await get_all_games(coalpha));
+   const id = await ss.ResolveVanityURL("coalpha");
+   console.log(id);
 }().catch(console.error.bind(console));
-// const SteamAPI = require("steamapi");
-// const secrets = JSON.parse(fs.readFileSync(__dirname + "/secrets.json"));
-
-// module.exports = new SteamAPI(secrets.steam_api_key);

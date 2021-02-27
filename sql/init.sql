@@ -23,7 +23,7 @@ create table if not exists game_stats(
    name text
 );
 
-create table if not exists avatars(
+create table if not exists files(
    url text primary key,
    large blob not null
 );
@@ -43,12 +43,12 @@ create table if not exists users(
 
    url text,
 
-   avatar text references avatars(url)
+   avatar text references files(url)
 );
 
 create table if not exists user_games(
-   owner integer(17)  references users(id),
-   game_id integer(6) references games(id),
+   user_id integer(17) references users(id),
+   game_id integer(6)  references games(id),
 
    playtime integer not null,
    l2w_playtime integer not null,
