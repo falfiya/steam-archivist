@@ -1,4 +1,5 @@
 pragma foreign_keys = on;
+
 create table if not exists games(
    id integer(6) primary key,
    name text not null,

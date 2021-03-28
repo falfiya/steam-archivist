@@ -2,16 +2,17 @@
    "compilerOptions": {
       "strict": true,
       "lib": [
-         "ES5",
-         "ES2015",
-         "ES2016",
-         "ES2018",
-         "ES2019",
-         "ES2020",
+         "es5",
+         "es2015",
+         "es2016",
+         "es2017",
+         "es2018",
+         "es2019",
+         "es2020",
       ],
 
-      "target": "ES2019",
-      "module": "CommonJS",
+      "target": "es2020",
+      "module": "commonjs",
       "moduleResolution": "Node",
 
       "outDir": "bin",
