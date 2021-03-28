@@ -1,5 +1,6 @@
 {
    "name": "steam-archivist",
+   "version": "0.0.0-alpha",
    "devDependencies": {
       "@types/better-sqlite3": "^5.4.1",
       "@types/node": "latest",

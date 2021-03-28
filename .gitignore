@@ -2,3 +2,4 @@
 /secrets.json
 /bin/
 /cache/
+*.sqlite3

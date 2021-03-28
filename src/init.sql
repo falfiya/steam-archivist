@@ -18,8 +18,16 @@ create table if not exists users_event_tracked(
    epoch
       integer references archive_event(epoch),
    user_id
-      integer(17) references users(id)
-   primary key (epoch, user_id),
+      integer(17) references users(id),
+   primary key (epoch, user_id)
+);
+
+create table if not exists users_event_untracked(
+   epoch
+      integer references archive_event(epoch),
+   user_id
+      integer(17) references users(id),
+   primary key (epoch, user_id)
 );
 
 create table if not exists leveling(
