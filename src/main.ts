@@ -8,20 +8,42 @@ const db = new Sqlite3Database("steam_archivist_snapshots.sqlite3");
 
 db.exec(fs.readFileSync("src/snapshot.sql", "utf8"));
 
-import {GetScrapedGames, steam_session, steam_id} from "ts-steam-webapi";
+import {GetScrapedGames, steam_session, steam_id, unwrap} from "ts-steam-webapi";
 
 const ss = new steam_session(require("../secrets.json").key);
 
-const snapshot = db.prepare(/* sql */ `
-   insert into snapshot values (:epoch, :reason);
+const db_snapshot = db.prepare(/* sql */ `
+   insert into snapshot
+   ( epoch
+   , reason
+   )
+   values
+   ( :epoch
+   , :reason
+   );
 `);
 
-const users = db.prepare(/* sql */ `
-   insert into users values (:epoch, :id);
+const db_users = db.prepare(/* sql */ `
+   insert into users
+   ( epoch
+   , id
+   )
+   values
+   ( :epoch
+   , :id
+   );
 `);
 
-const leveling = db.prepare(/* sql */ `
-   insert into leveling values
+const db_leveling = db.prepare(/* sql */ `
+   insert into leveling
+   ( epoch
+   , user_id
+   , player_xp
+   , player_level
+   , player_xp_needed_to_level_up
+   , player_xp_needed_current_level
+   )
+   values
    ( :epoch
    , :user_id
    , :player_xp
@@ -31,8 +53,16 @@ const leveling = db.prepare(/* sql */ `
    );
 `);
 
-const user_game = db.prepare(/* sql */ `
-   insert into user_game values
+const db_user_game = db.prepare(/* sql */ `
+   insert into user_game
+   ( epoch
+   , user_id
+   , player_xp
+   , player_level
+   , player_xp_needed_to_level_up
+   , player_xp_needed_current_level
+   )
+   values
    ( :epoch
    , :user_id
    , :game_id
@@ -46,94 +76,80 @@ const user_game = db.prepare(/* sql */ `
    );
 `);
 
-void async function main() {
-   const coalpha = steam_id(76561198280673707n);
-   const j1ng3rr = steam_id(76561198268253294n);
+const get_profile_url = <id extends steam_id>(id: id) =>
+   `https://steamcommunity.com/profiles/${id}` as (
+      `https://steamcommunity.com/profiles/${unwrap<typeof id>}`
+   );
 
-   const coalpha_leveling = await ss.GetBadges(coalpha);
-   const j1ng3rr_leveling = await ss.GetBadges(j1ng3rr);
-
-   const coalpha_owned_games = await ss.GetOwnedGames(coalpha, {include_appinfo: true});
-   const j1ng3rr_owned_games = await ss.GetOwnedGames(j1ng3rr, {include_appinfo: true});
-
-   const coalpha_scraped_games = await GetScrapedGames("https://steamcommunity.com/profiles/76561198280673707");
-   const j1ng3rr_scraped_games = await GetScrapedGames("https://steamcommunity.com/profiles/76561198268253294");
+async function archive(ids: steam_id[], reason: string) {
+   const res = await Promise.all(
+      ids.map(id => Promise.all(
+      [ id
+      , ss.GetBadges(id)
+      , ss.GetOwnedGames(id, {include_appinfo: true})
+      , GetScrapedGames(get_profile_url(id))
+      ]))
+   );
 
    const epoch = now();
+   db_snapshot.run({epoch, reason});
+   for (const [id, leveling, owned_games, scraped_games] of res) {
+      const user_id = id;
 
-   snapshot.run({epoch, reason: "manual"});
-
-   users.run({epoch, id: coalpha});
-   users.run({epoch, id: j1ng3rr});
-
-   leveling.run({epoch, user_id: coalpha, ...coalpha_leveling});
-   leveling.run({epoch, user_id: j1ng3rr, ...j1ng3rr_leveling});
-
-   for (const {
-      appid,
-      playtime_2weeks,
-      playtime_forever,
-      playtime_windows_forever,
-      playtime_mac_forever,
-      playtime_linux_forever,
-      name,
-   } of coalpha_owned_games) {
-      const user_game_row = {
-         epoch,
-         user_id: coalpha,
-
-         game_id: appid,
-         name,
-         playtime_2weeks,
-         playtime_forever,
-         playtime_windows_forever,
-         playtime_mac_forever,
-         playtime_linux_forever,
-         last_played: null,
-      };
-
-      const matching_scraped_game = coalpha_scraped_games
-         .find(scraped_game => scraped_game.appid === appid);
-
-      if (matching_scraped_game !== undefined) {
-         user_game_row.last_played = matching_scraped_game.last_played as never;
+      db_users.run({epoch, id});
+      {
+         const
+         { player_xp
+         , player_level
+         , player_xp_needed_to_level_up
+         , player_xp_needed_current_level
+         } = leveling;
+         db_leveling.run(
+            { epoch
+            , user_id
+            , player_xp
+            , player_level
+            , player_xp_needed_to_level_up
+            , player_xp_needed_current_level
+            }
+         );
       }
 
-      user_game.run(user_game_row);
-   }
+      for (
+         const
+         { appid: game_id
+         , playtime_2weeks
+         , playtime_forever
+         , playtime_windows_forever
+         , playtime_mac_forever
+         , playtime_linux_forever
+         , name
+         } of owned_games
+      ) {
+         const user_game_row =
+         { epoch
+         , user_id
+         , game_id
+         , name
+         , playtime_2weeks
+         , playtime_forever
+         , playtime_windows_forever
+         , playtime_mac_forever
+         , playtime_linux_forever
+         , last_played: null
+         };
 
-   for (const {
-      appid,
-      playtime_2weeks,
-      playtime_forever,
-      playtime_windows_forever,
-      playtime_mac_forever,
-      playtime_linux_forever,
-      name,
-   } of j1ng3rr_owned_games) {
-      const user_game_row = {
-         epoch,
-         user_id: j1ng3rr,
+         const matching_scraped_game = scraped_games
+            .find(scraped_game => scraped_game.appid === game_id);
 
-         game_id: appid,
-         name,
-         playtime_2weeks,
-         playtime_forever,
-         playtime_windows_forever,
-         playtime_mac_forever,
-         playtime_linux_forever,
-         last_played: null,
-      };
-
-      const matching_scraped_game = j1ng3rr_scraped_games
-         .find(scraped_game => scraped_game.appid === appid);
-
-      if (matching_scraped_game !== undefined) {
-         user_game_row.last_played = matching_scraped_game.last_played as never;
+         db_user_game.run(user_game_row);
       }
-
-      user_game.run(user_game_row);
    }
 
    db.close();
-}().catch(console.error.bind(console));
+};
+
+const coalpha = steam_id(76561198280673707n);
+const j1ng3rr = steam_id(76561198268253294n);
+
+archive([coalpha, j1ng3rr], "manual").catch(console.error.bind(console));
