@@ -8,7 +8,10 @@ const db = new Sqlite3Database("steam_archivist_snapshots.sqlite3");
 
 db.exec(fs.readFileSync("src/snapshot.sql", "utf8"));
 
-import {GetScrapedGames, steam_session, steam_id, unwrap} from "ts-steam-webapi";
+import {GetScrapedGames, steam_session, steam_id, unwrap, app_id} from "ts-steam-webapi";
+import {owned_game_ex} from "ts-steam-webapi/dist/IPlayerService/GetOwnedGames/owned_game";
+import {game} from "ts-steam-webapi/dist/IPlayerService";
+import {scraped_game} from "ts-steam-webapi/dist/Web/GetScrapedGames/scraped_game";
 
 const ss = new steam_session(require("../secrets.json").key);
 
@@ -57,10 +60,14 @@ const db_user_game = db.prepare(/* sql */ `
    insert into user_game
    ( epoch
    , user_id
-   , player_xp
-   , player_level
-   , player_xp_needed_to_level_up
-   , player_xp_needed_current_level
+   , game_id
+   , name
+   , playtime_2weeks
+   , playtime_forever
+   , playtime_windows_forever
+   , playtime_mac_forever
+   , playtime_linux_forever
+   , last_played
    )
    values
    ( :epoch
@@ -76,80 +83,83 @@ const db_user_game = db.prepare(/* sql */ `
    );
 `);
 
-const get_profile_url = <id extends steam_id>(id: id) =>
-   `https://steamcommunity.com/profiles/${id}` as (
-      `https://steamcommunity.com/profiles/${unwrap<typeof id>}`
-   );
+import {keyInPause} from "readline-sync";
+function gracefulExit() {
+   keyInPause();
+   db.close();
+   process.exit(1);
+}
 
-async function archive(ids: steam_id[], reason: string) {
-   const res = await Promise.all(
-      ids.map(id => Promise.all(
-      [ id
-      , ss.GetBadges(id)
-      , ss.GetOwnedGames(id, {include_appinfo: true})
-      , GetScrapedGames(get_profile_url(id))
-      ]))
-   );
-
-   const epoch = now();
-   db_snapshot.run({epoch, reason});
-   for (const [id, leveling, owned_games, scraped_games] of res) {
-      const user_id = id;
-
-      db_users.run({epoch, id});
-      {
-         const
-         { player_xp
-         , player_level
-         , player_xp_needed_to_level_up
-         , player_xp_needed_current_level
-         } = leveling;
-         db_leveling.run(
-            { epoch
-            , user_id
-            , player_xp
-            , player_level
-            , player_xp_needed_to_level_up
-            , player_xp_needed_current_level
-            }
-         );
-      }
-
-      for (
-         const
-         { appid: game_id
-         , playtime_2weeks
-         , playtime_forever
-         , playtime_windows_forever
-         , playtime_mac_forever
-         , playtime_linux_forever
-         , name
-         } of owned_games
-      ) {
-         const user_game_row =
-         { epoch
-         , user_id
-         , game_id
-         , name
-         , playtime_2weeks
-         , playtime_forever
-         , playtime_windows_forever
-         , playtime_mac_forever
-         , playtime_linux_forever
-         , last_played: null
-         };
-
-         const matching_scraped_game = scraped_games
-            .find(scraped_game => scraped_game.appid === game_id);
-
-         db_user_game.run(user_game_row);
+async function archive(id: steam_id, epoch: number) {
+   const [who] = await ss.GetPlayerSummaries([id]);
+   console.log(`archiving ${who.personaname} (${who.realname})`);
+   const leveling = await ss.GetBadges(id);
+   const any_game: {[game_id: app_id]: owned_game_ex & scraped_game} = {};
+   try {
+      const scraped_games = await GetScrapedGames(`https://steamcommunity.com/profiles/${id}` as any);
+      for (const scraped_game of scraped_games) {
+         any_game[scraped_game.appid] = scraped_game as any;
       }
    }
+   catch (e) {
+      console.error(" ssue fetching scraped games");
+      console.error(e);
+   }
 
-   db.close();
-};
+   try {
+      const recent_games = await ss.GetRecentlyPlayedGames(id);
+      for (const recent_game of recent_games) {
+         any_game[recent_game.appid] = {...any_game[recent_game.appid], ...recent_game};
+      }
+   }
+   catch (e) {
+      console.error("fatal error fetching recent games. quitting...");
+      console.error(e);
+      gracefulExit();
+   }
+
+   try {
+      const owned_games = await ss.GetOwnedGames(id, {include_appinfo: true});
+      for (const owned_game of owned_games) {
+         any_game[owned_game.appid] = {...any_game[owned_game.appid], ...owned_game};
+      }
+   }
+   catch (e) {
+      console.error("fatal error getting owned games. quitting...");
+      console.error(e);
+      gracefulExit();
+   }
+
+   db_users.run({epoch, id});
+   db_leveling.run({...leveling, user_id: id, epoch});
+   for (const [game_id, game] of Object.entries(any_game)) {
+      if (game_id === "440") {
+         continue;
+      }
+      console.log(`   ${game.name}@${game.playtime_forever} minutes`);
+      db_user_game.run({
+         epoch,
+         user_id: id,
+         game_id: game_id,
+         name: game.name,
+         playtime_2weeks: game.playtime_2weeks,
+         playtime_forever: game.playtime_forever,
+         playtime_windows_forever: game.playtime_windows_forever,
+         playtime_mac_forever: game.playtime_mac_forever,
+         playtime_linux_forever: game.playtime_linux_forever,
+         last_played: game.last_played,
+      });
+   }
+}
 
 const coalpha = steam_id(76561198280673707n);
 const j1ng3rr = steam_id(76561198268253294n);
 
-archive([coalpha, j1ng3rr], "manual").catch(console.error.bind(console));
+void async function main() {
+   const time_now = now();
+   db_snapshot.run({epoch: time_now, reason: "manual"});
+   await archive(coalpha, time_now);
+   await archive(j1ng3rr, time_now);
+   gracefulExit();
+}();
+

@@ -42,18 +42,18 @@ create table if not exists user_game(
    game_id
       integer not null,
    name
-      text not null,
+      text,
 
    playtime_2weeks
       integer,
    playtime_forever
-      integer not null,
+      integer,
    playtime_windows_forever
-      integer not null,
+      integer,
    playtime_mac_forever
-      integer not null,
+      integer,
    playtime_linux_forever
-      integer not null,
+      integer,
 
    last_played
       integer,
