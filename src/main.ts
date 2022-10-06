@@ -102,7 +102,7 @@ async function archive(id: steam_id, epoch: number) {
       }
    }
    catch (e) {
-      console.error(" ssue fetching scraped games");
+      console.error("issue fetching scraped games");
       console.error(e);
    }
 
@@ -115,7 +115,7 @@ async function archive(id: steam_id, epoch: number) {
    catch (e) {
       console.error("fatal error fetching recent games. quitting...");
       console.error(e);
-      gracefulExit();
+      // gracefulExit();
    }
 
    try {
